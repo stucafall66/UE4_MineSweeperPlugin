@@ -4,4 +4,5 @@ MineSweeper Plugin for UE4
 The Mine Sweeper Plugin for UE4
 
 Screenshots:
-![Alt text](relative/path/to/img.jpg?raw=true "Title")
+![Shot1](Screenshots/1.PNG)
+![Shot2](Screenshots/2.PNG)
