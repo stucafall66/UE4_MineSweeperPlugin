@@ -1,5 +1,3 @@
-// Fill out your copyright notice in the Description page of Project Settings.
-
 
 #include "SMineSweepWidget.h"
 #include "Math/UnrealMathUtility.h"
@@ -33,6 +31,18 @@ void SMineSweepWidget::Construct(const FArguments& InArgs)
 					SAssignNew(EditableTextBox_HeightPtr, SEditableTextBox).MinDesiredWidth(60.0f)
 				]
 			]
+			+ SVerticalBox::Slot().HAlign(HAlign_Left).VAlign(VAlign_Top).AutoHeight() //Assign num of mines
+			[
+				SNew(SHorizontalBox)
+				+ SHorizontalBox::Slot().HAlign(HAlign_Left).VAlign(VAlign_Top)
+				[
+				SNew(STextBlock).Text(FText::FromString(TEXT("Number of Mines:"))).Margin(margin).MinDesiredWidth(180.0f)
+				]
+				+ SHorizontalBox::Slot().HAlign(HAlign_Left).VAlign(VAlign_Top)
+				[
+				SAssignNew(EditableTextBox_MinesNumPtr, SEditableTextBox).MinDesiredWidth(60.0f)
+				]
+			]
 			+ SVerticalBox::Slot().HAlign(HAlign_Left).VAlign(VAlign_Top).AutoHeight() //Generate new grid button
 			[
 				SNew(SButton)
@@ -52,20 +62,25 @@ void SMineSweepWidget::Construct(const FArguments& InArgs)
 
 FReply SMineSweepWidget::OnGenerateGridButtonClicked()
 {
-	if (EditableTextBox_WidthPtr->GetText().IsNumeric() && EditableTextBox_HeightPtr->GetText().IsNumeric())
+	if (EditableTextBox_WidthPtr->GetText().IsNumeric()
+		&& EditableTextBox_HeightPtr->GetText().IsNumeric()
+		&& EditableTextBox_MinesNumPtr->GetText().IsNumeric())
 	{
 		GridWidth = FCString::Atoi(*EditableTextBox_WidthPtr->GetText().ToString());
 		GridHeight = FCString::Atoi(*EditableTextBox_HeightPtr->GetText().ToString());
-		if (GridWidth > 0 && GridHeight > 0)
+		MinesNum = FCString::Atoi(*EditableTextBox_MinesNumPtr->GetText().ToString());
+
+		if (GridWidth > 0 && GridHeight > 0 
+			&& MinesNum >= 0 && MinesNum <= GridWidth * GridHeight)
 		{
-			RefreshGrid(GridWidth, GridHeight);
+			RefreshGrid(GridWidth, GridHeight, MinesNum);
 		}
 	}
 
 	return FReply::Handled();
 }
 
-void SMineSweepWidget::RefreshGrid(const int32& width, const int32& height)
+void SMineSweepWidget::RefreshGrid(const int32& width, const int32& height, const int32& minesNum)
 {
 	//Clear all elements inside container
 	GridContainer->ClearChildren();
@@ -73,6 +88,8 @@ void SMineSweepWidget::RefreshGrid(const int32& width, const int32& height)
 	ButtonTextTArray.Empty();
 	//Initialize bClickedTArray
 	bClickedTArray.Init(false, width * height);
+	//Reset MinePosTArray
+	MinePosTArray.Empty();
 
 	GridWidth = width;
 	GridHeight = height;
@@ -107,52 +124,88 @@ void SMineSweepWidget::RefreshGrid(const int32& width, const int32& height)
 			ButtonTextTArray.Add(ButtonLabel);
 		}
 	}
-	//Generate a random mine, currently there's only one mine 
-	MinePos = FMath::RandRange(0, width * height - 1);
+	//Generate random mines
+	GenerateRandomMines(width * height, minesNum);
+}
+
+void SMineSweepWidget::GenerateRandomMines(const int32& size, const int32& minesNum)
+{
+	TArray<int32> TempArr;
+	for (int32 i = 0; i < size; i++)
+	{
+		TempArr.Add(i);
+	}
+	//Shuffle temp array
+	const int32 LastIndex = TempArr.Num() - 1;
+	for (int32 i = 0; i < LastIndex; ++i)
+	{
+		int32 Index = FMath::RandRange(0, LastIndex);
+		if (i != Index)
+		{
+			TempArr.Swap(i, Index);
+		}
+	}
+	//Pick up the first MinesNum number from temp array to get unique random array with size MinesNum
+	for (int32 i = 0; i < minesNum; i++)
+	{
+		MinePosTArray.Add(TempArr[i]);
+	}
+}
+
+int32 SMineSweepWidget::CountSurroundingMines(const int32& clickRow, const int32& clickColumn)
+{
+	int32 downerRow = FMath::Max(0, clickRow - 1);
+	int32 upperRow = FMath::Min(GridHeight - 1, clickRow + 1);
+	int32 leftColumn = FMath::Max(0, clickColumn - 1);
+	int32 rightColumn = FMath::Min(GridWidth - 1, clickColumn + 1);
+
+	int32 counter = 0;
+
+	for (int32 i = downerRow; i <= upperRow; i++)
+	{
+		for (int32 j = leftColumn; j <= rightColumn; j++)
+		{
+			if (MinePosTArray.Find(i * GridWidth + j) != INDEX_NONE)
+			{
+				counter++;
+			}
+		}
+	}
+
+	if (counter == 0) //There's no surrounding bombs, recursively click surrounding button
+	{
+		for (int32 i = downerRow; i <= upperRow; i++)
+		{
+			for (int32 j = leftColumn; j <= rightColumn; j++)
+			{
+				if (!bClickedTArray[i * GridWidth + j])
+				{
+					OnSingleButtonClicked(i * GridWidth + j);
+				}
+			}
+		}
+	}
+
+	return counter;
 }
 
 FReply SMineSweepWidget::OnSingleButtonClicked(const int32 id)
 {
 	UE_LOG(LogTemp, Warning, TEXT("Button id is %d ."), id);
 
-	int32 row = (int32)(id / GridWidth);
-	int32 column = (int32)(id % GridWidth);
-	int32 mineRow = (int32)(MinePos / GridWidth);
-	int32 mineColumn = (int32)(MinePos % GridWidth);
+	int32 clickRow = (int32)(id / GridWidth);
+	int32 clickColumn = (int32)(id % GridWidth);
 
 	bClickedTArray[id] = true;
 
-	if (id == MinePos)
+	if (MinePosTArray.Find(id) != INDEX_NONE)
 	{
 		FMessageDialog::Open(EAppMsgType::Ok, FText::FromString(FString(TEXT("BOOM! GAME OVER!"))));
 		ButtonTextTArray[id]->SetText(FText::FromString(FString(TEXT("M"))));
 	}
 	else
 	{
-		if (FMath::Abs(row - mineRow) <= 1 && FMath::Abs(column - mineColumn) <= 1)
-		{
-			ButtonTextTArray[id]->SetText(FText::FromString(FString(TEXT("1"))));
-		}
-		else
-		{
-			int32 downerRow = FMath::Max(0, row - 1);
-			int32 upperRow = FMath::Min(GridHeight - 1, row + 1);
-			int32 leftColumn = FMath::Max(0, column - 1);
-			int32 rightColumn = FMath::Min(GridWidth - 1, column + 1);
-
-			ButtonTextTArray[id]->SetText(FText::FromString(FString(TEXT("0"))));
-
-			for (int32 i = downerRow; i <= upperRow; i++)
-			{
-				for (int32 j = leftColumn; j <= rightColumn; j++)
-				{
-					if (!bClickedTArray[i * GridWidth + j])
-					{
-						OnSingleButtonClicked(i * GridWidth + j);
-					}
-				}
-			}
-		}
+		ButtonTextTArray[id]->SetText(FText::FromString( FString::FromInt(CountSurroundingMines(clickRow, clickColumn)) ));
 	}
 
 	return FReply::Handled();
