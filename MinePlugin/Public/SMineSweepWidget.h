@@ -19,20 +19,24 @@ public:
 
 private:
 
-	void RefreshGrid(const int32& width, const int32& height);
+	void RefreshGrid(const int32& width, const int32& height, const int32& minesNum);
+	void GenerateRandomMines(const int32& size, const int32& minesNum);
 	FReply OnGenerateGridButtonClicked();
 	FReply OnSingleButtonClicked(const int32 id);
+	int32 CountSurroundingMines(const int32& clickRow, const int32& clickColumn);
 
 private:
 
 	TSharedPtr<SEditableTextBox> EditableTextBox_WidthPtr;
 	TSharedPtr<SEditableTextBox> EditableTextBox_HeightPtr;
+	TSharedPtr<SEditableTextBox> EditableTextBox_MinesNumPtr;
 	TSharedPtr<SVerticalBox> GridContainer;
 
 	TArray<TSharedPtr<STextBlock>> ButtonTextTArray;
 	TArray<bool> bClickedTArray;
+	TArray<int32> MinePosTArray;
 
 	int32 GridWidth;
 	int32 GridHeight;
-	int32 MinePos;
+	int32 MinesNum;
 };
